@@ -5,12 +5,19 @@ to use:
 
 args:
 (1) dataset
+
 (2) group variable within dataset (optional, if not given just use all observations)
+
 (3) group labels for group variable
+
 (4) data frame of columns:
+
 -variables to include in output table (must be named vars)
+
 -variable labels (must be named varlabs)
+
 -numeric, percentage, categorical specs for each variable (must be named type)
+
 -test type for each variable to compare across groups (optional, if included must be named test)
 
 
@@ -34,6 +41,8 @@ notes
 =====
 
 -pretty p-values
+
 -rounding digits
+
 -correct for multiple testing?
 
