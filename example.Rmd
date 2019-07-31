@@ -1,0 +1,78 @@
+---
+title: "Minimal Working Example"
+author: "Jen Birstler"
+date: '`r Sys.Date()`'
+output:
+  pdf_document:
+    fig_caption: yes
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "/Users/jbirstler/Documents/allTable",
+                     echo = FALSE, message = FALSE, warning = FALSE)
+library(magrittr)
+library(dplyr)
+library(tidyr)
+library(xtable)
+options(xtable.comment = FALSE)
+```
+
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+source(file = "tableOne.r")
+source(file = "tableOneStrata.r")
+```
+
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+set.seed(123)
+myDat <- mtcars %>%
+  mutate(Transmission = ifelse(am, "Manual", "Automatic"),
+         Engine = ifelse(vs, "Straight", "V-Shaped"),
+         Yamagata = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Zika = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Hanta = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Cough = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Malaise = rbinom(nrow(.), size = 1, prob = runif(1)),
+         `Sore throat` = rbinom(nrow(.), size = 1, prob = runif(1))) %>%
+  mutate_at(vars(Yamagata, Zika, Hanta, Cough, Malaise, `Sore throat`), list(~as.logical(.)))
+```
+
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, results = "asis"}
+tab1 <- tableOne(data = myDat,
+                 varsCat = c("Engine", "cyl", "gear", "PCR results", "Symptoms"),
+                 varsNumerical = c("qsec", "mpg", "disp", "hp", "drat", "wt"),
+                 preserveOrder = c("cyl", "gear"),
+                 checkboxes = list("PCR results" = c("Yamagata", "Zika", "Hanta"),
+                                   "Symptoms" = c("Cough", "Malaise", "Sore throat"))) %>%
+  mutate(Subcategory = ifelse(Subcategory == "n", "n (%)", Subcategory),
+         Variable = ifelse(Variable == "", NA, Variable)) %>%
+  fill(Variable) %>%
+  rename(Overall = Value) %>% select(-hline)
+
+tab2 <- tableOneStrata(data = myDat,
+                       varsCat = c("Engine", "cyl", "gear", "PCR results", "Symptoms"),
+                       varsNumerical = c("qsec", "mpg", "disp", "hp", "drat", "wt"),
+                       preserveOrder = c("cyl", "gear"),
+                       checkboxes = list("PCR results" = c("Yamagata", "Zika", "Hanta"),
+                                   "Symptoms" = c("Cough", "Malaise", "Sore throat")),
+                       strata = "Transmission") %>%
+  mutate(Variable = ifelse(Variable == "", NA, Variable)) %>%
+  fill(Variable)
+
+full_join(tab1, tab2, by = c("Variable", "Subcategory")) %>% select(Variable, Subcategory, Overall, Automatic, Manual, pval) %>%
+  mutate(Subcategory = sanitize(Subcategory)) %>%
+  mutate(Variable = ifelse(Variable == lag(Variable, default = ""), "", Variable),
+         Variable = ifelse(Variable == "",
+                           paste0("\\hskip .5cm ", Subcategory),
+                           paste0(Variable, ", ", Subcategory))) %>%
+  select(-Subcategory) %>%
+  xtable(align = "lll|llr", caption = "Quisque auctor libero tortor, fermentum egestas mi ornare id.") %>%
+  print(include.rownames = FALSE,
+        hline.after = c(-1,0,nrow(tab2), which(tab2$hline) -1),
+        comment = FALSE,
+        type = "latex",
+        sanitize.text.function = identity)
+```
