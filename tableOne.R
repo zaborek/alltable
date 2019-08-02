@@ -2,6 +2,32 @@ library(scales)
 library(dplyr)
 library(tidyr)
 
+
+# generate debug data
+set.seed(123)
+myDat <- mtcars %>%
+  mutate(Transmission = ifelse(am, "Manual", "Automatic"),
+         Engine = ifelse(vs, "Straight", "V-Shaped"),
+         Yamagata = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Zika = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Hanta = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Cough = rbinom(nrow(.), size = 1, prob = runif(1)),
+         Malaise = rbinom(nrow(.), size = 1, prob = runif(1)),
+         `Sore throat` = rbinom(nrow(.), size = 1, prob = runif(1))) %>%
+  mutate_at(vars(Yamagata, Zika, Hanta, Cough, Malaise, `Sore throat`), list(~as.logical(.)))
+
+data = myDat
+varsCat = c("Engine", "cyl", "gear", "PCR results", "Symptoms")
+varsNumerical = c("qsec", "mpg", "disp", "hp", "drat", "wt")
+preserveOrder = c("cyl", "gear")
+checkboxes = list("PCR results" = c("Yamagata", "Zika", "Hanta"),
+                  "Symptoms" = c("Cough", "Malaise", "Sore throat"))
+format="%.2f"
+
+
+
+##################################
+
 prettyPval <- function (x) { ifelse(x < 0.001, "< 0.001", sprintf("%.3f", x))}
 
 tableOne <- function(checkboxes = list(NULL),

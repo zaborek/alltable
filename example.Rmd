@@ -9,8 +9,6 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_knit$set(root.dir = "/Users/jbirstler/Documents/allTable",
-                     echo = FALSE, message = FALSE, warning = FALSE)
 library(magrittr)
 library(dplyr)
 library(tidyr)
@@ -37,6 +35,7 @@ myDat <- mtcars %>%
          Malaise = rbinom(nrow(.), size = 1, prob = runif(1)),
          `Sore throat` = rbinom(nrow(.), size = 1, prob = runif(1))) %>%
   mutate_at(vars(Yamagata, Zika, Hanta, Cough, Malaise, `Sore throat`), list(~as.logical(.)))
+
 ```
 
 
@@ -75,4 +74,9 @@ full_join(tab1, tab2, by = c("Variable", "Subcategory")) %>% select(Variable, Su
         comment = FALSE,
         type = "latex",
         sanitize.text.function = identity)
+```
+
+
+```{r try3, echo=F, message = FALSE, warning = FALSE, results = "asis"}
+
 ```
