@@ -11,26 +11,7 @@
 
 
 
-# generate debug data
-set.seed(123)
-myDat <- mtcars %>%
-  mutate(Transmission = ifelse(am, "Manual", "Automatic"),
-         Engine = ifelse(vs, "Straight", "V-Shaped"),
-         Yamagata = rbinom(nrow(.), size = 1, prob = runif(1)),
-         Zika = rbinom(nrow(.), size = 1, prob = runif(1)),
-         Hanta = rbinom(nrow(.), size = 1, prob = runif(1)),
-         Cough = rbinom(nrow(.), size = 1, prob = runif(1)),
-         Malaise = rbinom(nrow(.), size = 1, prob = runif(1)),
-         `Sore throat` = rbinom(nrow(.), size = 1, prob = runif(1))) %>%
-  mutate_at(vars(Yamagata, Zika, Hanta, Cough, Malaise, `Sore throat`), list(~as.logical(.)))
 
-data = myDat
-varsCat = c("Engine", "cyl", "gear", "PCR results", "Symptoms")
-varsNumerical = c("qsec", "mpg", "disp", "hp", "drat", "wt")
-preserveOrder = c("cyl", "gear")
-checkboxes = list("PCR results" = c("Yamagata", "Zika", "Hanta"),
-                  "Symptoms" = c("Cough", "Malaise", "Sore throat"))
-format="%.2f"
 
 
 
@@ -53,6 +34,13 @@ sdf <- function(x, format="%.1f"){
   rv
 }
 
+rangef <- function(x, format="%.1f"){
+  min_ = sprintf(format, min(x, na.rm=T))
+  max_ = sprintf(format, max(x, na.rm=T))
+  rv = paste0("[",min_, "-",max_,"]")
+  rv
+}
+
 ################################################################################
 
 
@@ -62,10 +50,12 @@ sdf <- function(x, format="%.1f"){
 calcColumn <- function(checkboxes = list(NULL),
                        varsCat,
                        varsNumerical = NULL,
-                       preserveOrder,
+                       preserveOrder = list(NULL),
                        data,
                        strata = NULL,
-                       format = "%.1f") {
+                       format = "%.1f",
+                       inc.range = T,
+                       inc.sd = T) {
   
   # distinguish between general categorical vars and checkbox categorical vars
   if (length(which(varsCat %in% names(checkboxes))) > 0) {
@@ -77,7 +67,7 @@ calcColumn <- function(checkboxes = list(NULL),
   # row1 of returned data frame with columns: 
   row1 <- data.frame(Variable = "Total",
                      Subcategory = NA,
-                     Value = comma(nrow(data)),
+                     Value = format(nrow(data),big.mark=",",scientific=FALSE),
                      type = "n",
                      stringsAsFactors = FALSE)
   
@@ -91,7 +81,16 @@ calcColumn <- function(checkboxes = list(NULL),
     for (numvar in sort(varsNumerical)){
       Variable = numvar
       Subcategory = NA
-      Value = paste0(meanf(data[[numvar]]), " (", sdf(data[[numvar]]), ")")
+      
+      suffix = ""
+      if(inc.range==T){
+        suffix = paste0(" ", rangef(data[[numvar]]))
+      }
+      if(inc.sd==T){
+        suffix = paste0(suffix, " (", sdf(data[[numvar]]), ")")
+      }
+      Value = paste0(meanf(data[[numvar]]), suffix)
+      
       type = "mean (sd)"
       rv = data.frame(Variable, Subcategory, Value, type, stringsAsFactors = F)
       row2 = rbind(row2, rv, stringsAsFactors=F)
@@ -149,7 +148,7 @@ calcColumn <- function(checkboxes = list(NULL),
   # Value = n (%) (chr)
   
   row4 <- row3[F,]
-  if (length(which(varsCat %in% names(checkboxes))) > 0) {
+  if (length(names(checkboxes)) > 0) {
     
     for (chkvar in sort(names(checkboxes))){
       for (lvl in sort(checkboxes[[chkvar]])){
@@ -172,6 +171,7 @@ calcColumn <- function(checkboxes = list(NULL),
   
   # return as pretty char datafame
   # with columns: name, value
+  out.varname = c(row1$Variable, row2$Variable)
   
   # handle numvars
   charmat = cbind(row2$Variable, row2$Value)
@@ -180,8 +180,10 @@ calcColumn <- function(checkboxes = list(NULL),
   # handle catvars
   for (catvar in unique(row3$Variable)){
     charmat = rbind(charmat, c(catvar, ""))
+    out.varname = c(out.varname, catvar)
     idx_ = which(row3$Variable==catvar)
     for(idx in idx_){
+      out.varname = c(out.varname, paste0("    ", row3$Subcategory[idx]))
       charmat = rbind(charmat,
                       c(paste0("   ",row3$Variable[idx],":", row3$Subcategory[idx]), row3$Value[idx])
       )
@@ -193,8 +195,10 @@ calcColumn <- function(checkboxes = list(NULL),
   
   for (chkvar in unique(row4$Variable)){
     charmat = rbind(charmat, c(chkvar, ""))
+    out.varname = c(out.varname, chkvar)
     idx_ = which(row4$Variable==chkvar)
     for(idx in idx_){
+      out.varname = c(out.varname, paste0("   ",row4$Subcategory[idx]))
       charmat = rbind(charmat,
                       c(paste0("   ",row4$Variable[idx],":", row4$Subcategory[idx]), row4$Value[idx])
       )
@@ -202,72 +206,152 @@ calcColumn <- function(checkboxes = list(NULL),
   }
   
   # return charmat
-  charmat
+  cbind(out.varname, charmat)
 }
 
 # overarching function to call calcColumn, combine results, and calc p-values
 allTable <- function(checkboxes = list(NULL),
-                     varsCat,
+                     varsCat = NULL,
                      varsNumerical = NULL,
-                     preserveOrder,
+                     preserveOrder=list(NULL),
                      data,
                      strata = NULL,
-                     format = "%.1f"){
+                     format = "%.1f",
+                     inc.range=T,
+                     inc.sd=F){
+  
+  # handle vanilla case when no vars are specified
+  if(is.null(varsNumerical) & is.null(varsCat) & is.null(names(checkboxes))){
+    checkboxes=list()
+    varsCat = c()
+    varsNumerical= c()
+    for (varname in colnames(data)){
+      if(!is.null(strata)){if(varname == strata){next}}
+      var.class = class(data[[varname]])
+      if(var.class %in% c("factor", "character")){
+        varsCat = c(varsCat, varname)
+      } # end categorical
+      else if (var.class %in% c("integer", "numeric")){
+        # handle numerical case with only 0/1 as entries
+        if (sort(unique(data[[varname]])) == c(0,1) ){
+          checkboxes[["Binary variables"]] = c(checkboxes[["Binary variables"]], varname)
+        }else{
+          varsNumerical = c(varsNumerical, varname)
+        }
+      } # end numeric
+      else if (var.class == "logical"){
+        checkboxes[["Binary variables"]] = c(checkboxes[["Binary variables"]], varname)
+      }# end logical
+    } # end for loop
+  }# end vanilla case
+  
   
   # calculate overall table
   outmat = calcColumn(checkboxes,
                       varsCat,
                       varsNumerical,
                       preserveOrder,
-                      data, format=format)
-  colnames(outmat)[2] = "Overall"
+                      data, format=format, inc.range=inc.range, inc.sd=inc.sd)
+  colnames(outmat)[3] = "Overall"
   
   
   # return if no strata -- easy case
   if (is.null(strata)){
+    outmat[,2] = outmat[,1]
+    outmat = outmat[,-1]
     return(outmat)
   }
   
   # else handle stratified case
   
   # call calcColumn for each strata subset of data
-  for( strat in sort(data[[strata]]) ){
+  for(strat in sort(unique(data[[strata]])) ){
     idx.strat = which(data[[strata]] == strat)
     data.strat = data[idx.strat,]
     
-    outmat = calcColumn(checkboxes,
-                        varsCat,
-                        varsNumerical,
-                        preserveOrder,
-                        data.strat, format=format)
-    colnames(outmat)[2] = strat
+    outmatc = calcColumn(checkboxes,
+                         varsCat,
+                         varsNumerical,
+                         preserveOrder,
+                         data.strat, format=format, inc.range=inc.range, inc.sd=inc.sd)
+    colnames(outmatc)[3] = strat
     
-    # merge into existing
+    # merge into existing outmat
+    idx = outmat[,2] %in% outmatc[,2]
+    strat.col = rep("", nrow(outmat))
+    strat.col[idx] = outmatc[,3]
+    outmat = cbind(outmat,strat.col)
+    colnames(outmat)[ncol(outmat)] = strat
+  }
+  
+  outmat[,2] = outmat[,1]
+  outmat = outmat[,-1]
+  
+  
+  
+  
+  # generate p-values. ##################################
+  tmp = c()
+  
+  # numerical variables
+  for (numvar in varsNumerical){
+    Variable = numvar
+    p.value.unf = kruskal.test(data[[numvar]] ~ as.factor(data[[strata]]))$p.value
+    p.value = prettyPval(p.value.unf)
+    
+    tmp = rbind(tmp, c(Variable, p.value, p.value.unf))
+  }
+  
+  # categorical variables
+  # distinguish between general categorical vars and checkbox categorical vars
+  if (length(which(varsCat %in% names(checkboxes))) > 0) {
+    varsCatSelect <- varsCat[-which(varsCat %in% names(checkboxes))]
+  } else {
+    varsCatSelect <- varsCat
+  }
+  
+  # suppress chisq warnings
+  oldw <- getOption("warn")
+  options(warn = -1)
+  
+  for (catvar in varsCatSelect){
+    Variable = catvar
+    p.value.unf = chisq.test(table(data[[catvar]], data[[strata]]), correct=F)$p.value
+    p.value = prettyPval(p.value.unf)
+    
+    tmp = rbind(tmp, c(Variable, p.value, p.value.unf))
   }
   
   
+  # checkbox variables
+  for (chkvar in names(checkboxes)){
+    for (lvl in sort(checkboxes[[chkvar]])){
+      Variable = lvl
+      p.value.unf = chisq.test(table(data[[lvl]], data[[strata]]), correct=F)$p.value
+      p.value = prettyPval(p.value.unf)
+      
+      tmp = rbind(tmp, c(Variable, p.value, p.value.unf))
+    }
+  }
+  
+  options(warn = oldw)
+  
+  idx.p = match(trimws(tmp[,1]), trimws(outmat[,1]))
+  out.p = rep("", nrow(outmat))
+  out.p[idx.p] = tmp[,2]
+  
+  outmat = cbind(outmat, out.p)
+  colnames(outmat)[ncol(outmat)] = "p-value"
+  
+  
+  p.values = data.frame(variable=tmp[,1], stringsAsFactors = F)
+  p.values$p.value = as.numeric(tmp[,3])
+  
+  rv = list(outmat, p.values)
+  
+  return(rv)
+  
 }
-
-
-# try to call
-
-
-# easy case, works for no strata
-allTable(data = data,
-         varsCat = c("Engine", "cyl", "gear", "PCR results", "Symptoms"),
-         varsNumerical = c("qsec", "mpg", "disp", "hp", "drat", "wt"),
-         preserveOrder = c("cyl", "gear"),
-         checkboxes = list("PCR results" = c("Yamagata", "Zika", "Hanta"),
-                           "Symptoms" = c("Cough", "Malaise", "Sore throat")))
-
-
-
-
-
-
-
-
-
 
 
 
