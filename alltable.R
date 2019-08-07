@@ -84,12 +84,12 @@ calcColumn <- function(checkboxes = list(NULL),
       
       suffix = ""
       if(inc.range==T){
-        suffix = paste0(" ", rangef(data[[numvar]]))
+        suffix = paste0(" ", rangef(data[[numvar]], format))
       }
       if(inc.sd==T){
-        suffix = paste0(suffix, " (", sdf(data[[numvar]]), ")")
+        suffix = paste0(suffix, " (", sdf(data[[numvar]],format), ")")
       }
-      Value = paste0(meanf(data[[numvar]]), suffix)
+      Value = paste0(meanf(data[[numvar]],format), suffix)
       
       type = "mean (sd)"
       rv = data.frame(Variable, Subcategory, Value, type, stringsAsFactors = F)
