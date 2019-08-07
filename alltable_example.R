@@ -39,6 +39,6 @@ allTable(data = data,
                            "Symptoms" = c("Cough", "Malaise", "Sore throat")),
          strata="trt")
 
-# other options to remove range, include sd:
-allTable(data = data, strata="trt", inc.sd=T, inc.range = F)
+# other options to remove range, include sd, modify format
+allTable(data = data, strata="trt", inc.sd=T, inc.range = T, format = "%.1f")
 
